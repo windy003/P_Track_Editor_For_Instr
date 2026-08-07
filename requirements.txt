@@ -1,0 +1,5 @@
+PyQt5
+numpy
+pydub
+sounddevice
+audioop-lts; python_version >= "3.13"
