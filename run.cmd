@@ -1,0 +1,1 @@
+start /b  "" "D:\files\using\Python\P_Track_Editor_For_Instr\.venv\Scripts\pythonw.exe"    "D:\files\using\Python\P_Track_Editor_For_Instr\main.py"
