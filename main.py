@@ -8,7 +8,7 @@ from audio_editor.main_window import MainWindow
 def main():
     app = QApplication(sys.argv)
     win = MainWindow()
-    win.show()
+    win.showMaximized()
     sys.exit(app.exec_())
 
 
