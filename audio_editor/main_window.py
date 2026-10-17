@@ -5,7 +5,7 @@ import time
 import numpy as np
 import sounddevice as sd
 from PyQt5.QtCore import Qt, QTimer
-from PyQt5.QtGui import QKeySequence
+from PyQt5.QtGui import QColor, QKeySequence, QPalette
 from PyQt5.QtWidgets import (
     QAction, QCheckBox, QFileDialog, QLabel, QMainWindow, QMessageBox,
     QScrollBar, QStyle, QToolBar, QWidget, QHBoxLayout, QVBoxLayout,
@@ -57,6 +57,11 @@ class MainWindow(QMainWindow):
         self.statusBar()  # 用于显示工具栏按钮的悬停提示（status tip）
 
         central = QWidget()
+        # 整体白色背景
+        central.setAutoFillBackground(True)
+        pal = central.palette()
+        pal.setColor(QPalette.Window, QColor(255, 255, 255))
+        central.setPalette(pal)
         layout = QVBoxLayout(central)
         layout.setContentsMargins(4, 4, 4, 4)
         layout.addWidget(self.view, 1)

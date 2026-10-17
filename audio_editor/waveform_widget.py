@@ -1,9 +1,25 @@
 """双轨波形显示与选区交互控件。"""
+import os
+
 from PyQt5.QtCore import Qt, QRectF, pyqtSignal
 from PyQt5.QtGui import QPainter, QColor, QPen
 from PyQt5.QtWidgets import QWidget
 
 NICE_STEPS = [0.1, 0.2, 0.5, 1, 2, 5, 10, 15, 30, 60, 120, 300, 600, 900, 1800, 3600]
+
+# 白色（浅色）配色
+BG_COLOR = QColor(255, 255, 255)  # 波形区背景
+RULER_BG = QColor(240, 240, 242)  # 刻度条背景
+RULER_TEXT = QColor(100, 100, 110)
+LANE_BORDER = QColor(200, 200, 205)
+LANE_MIDLINE = QColor(225, 225, 230)
+LANE_TEXT = QColor(60, 60, 70)
+SPLIT_LINE = QColor(90, 90, 100, 220)
+SEL_FILL = QColor(255, 193, 7, 70)
+SEL_EDGE = QColor(214, 150, 0, 200)
+PLAYHEAD = QColor(220, 40, 40)
+TRACK1_COLOR = QColor(30, 110, 220)
+TRACK2_COLOR = QColor(30, 150, 70)
 
 
 def nice_tick_interval(view_duration, width_px):
@@ -195,7 +211,7 @@ class DualWaveformView(QWidget):
     # ---------- 绘制 ----------
     def paintEvent(self, event):
         painter = QPainter(self)
-        painter.fillRect(self.rect(), QColor(24, 24, 28))
+        painter.fillRect(self.rect(), BG_COLOR)
 
         w = self.width()
         h = self.height()
@@ -206,12 +222,12 @@ class DualWaveformView(QWidget):
         self._draw_ruler(painter, w)
 
         self._draw_lane(painter, self.track1, "原版 / 原唱", 0, lane_ys[0], w, lane_hs[0],
-                         QColor(80, 160, 255))
+                         TRACK1_COLOR)
         self._draw_lane(painter, self.track2, "伴奏", 1, lane_ys[1], w, lane_hs[1],
-                         QColor(120, 220, 140))
+                         TRACK2_COLOR)
 
         # 拆分点（每条轨道各画各的）
-        pen = QPen(QColor(255, 255, 255, 200))
+        pen = QPen(SPLIT_LINE)
         pen.setWidth(1)
         pen.setStyle(Qt.DashLine)
         painter.setPen(pen)
@@ -229,9 +245,8 @@ class DualWaveformView(QWidget):
             x2 = self.time_to_x(min(e, self.view_end))
             if x2 > x1:
                 y0, y1 = lane_ys[self.selection_lane], lane_ys[self.selection_lane] + lane_hs[self.selection_lane]
-                painter.fillRect(QRectF(x1, y0, x2 - x1, y1 - y0),
-                                  QColor(255, 220, 80, 70))
-                pen = QPen(QColor(255, 220, 80, 180))
+                painter.fillRect(QRectF(x1, y0, x2 - x1, y1 - y0), SEL_FILL)
+                pen = QPen(SEL_EDGE)
                 pen.setWidth(1)
                 painter.setPen(pen)
                 painter.drawLine(int(x1), y0, int(x1), y1)
@@ -240,7 +255,7 @@ class DualWaveformView(QWidget):
         # 播放头
         if self.view_start <= self.playhead <= self.view_end:
             x = self.time_to_x(self.playhead)
-            pen = QPen(QColor(255, 70, 70))
+            pen = QPen(PLAYHEAD)
             pen.setWidth(2)
             painter.setPen(pen)
             painter.drawLine(int(x), self.RULER_H, int(x), h)
@@ -248,12 +263,12 @@ class DualWaveformView(QWidget):
         painter.end()
 
     def _draw_ruler(self, painter, w):
-        painter.fillRect(QRectF(0, 0, w, self.RULER_H), QColor(15, 15, 18))
+        painter.fillRect(QRectF(0, 0, w, self.RULER_H), RULER_BG)
         dur = self.view_end - self.view_start
         if dur <= 0:
             return
         step = nice_tick_interval(dur, w)
-        painter.setPen(QPen(QColor(160, 160, 170)))
+        painter.setPen(QPen(RULER_TEXT))
         t = (int(self.view_start / step)) * step
         while t <= self.view_end + step:
             if t >= self.view_start:
@@ -263,17 +278,15 @@ class DualWaveformView(QWidget):
             t += step
 
     def _draw_lane(self, painter, track, label, cache_key, y, w, lane_h, color):
-        painter.setPen(QPen(QColor(50, 50, 56)))
+        painter.setPen(QPen(LANE_BORDER))
         painter.drawRect(0, y, w - 1, lane_h - 1)
 
         mid = y + lane_h / 2
-        painter.setPen(QPen(QColor(60, 60, 66)))
+        painter.setPen(QPen(LANE_MIDLINE))
         painter.drawLine(0, int(mid), w, int(mid))
 
-        painter.setPen(QPen(QColor(200, 200, 210)))
-        painter.drawText(6, y + 14, label if track and track.loaded else f"{label}（未加载）")
-
         if not track or not track.loaded or w <= 0:
+            self._draw_lane_label(painter, track, label, y, w, color)
             return
 
         cache_id = (cache_key, self.view_start, self.view_end, w)
@@ -292,6 +305,35 @@ class DualWaveformView(QWidget):
             if abs(y2 - y1) < 1:
                 y2 = y1 + 1
             painter.drawLine(x, int(y1), x, int(y2))
+
+        # 标签最后画，避免被波形盖住
+        self._draw_lane_label(painter, track, label, y, w, color)
+
+    def _draw_lane_label(self, painter, track, label, y, w, color):
+        """左上角显示该轨是原版还是伴奏，以及对应的文件名。"""
+        if track and track.loaded:
+            name = os.path.basename(track.filepath) if track.filepath else "（未命名）"
+        else:
+            name = "（未加载）"
+
+        fm = painter.fontMetrics()
+        text_y = y + 14
+        role_w = fm.horizontalAdvance(label)
+        name_x = 6 + role_w + 6
+        avail = w - 8 - name_x
+        name_text = fm.elidedText(name, Qt.ElideMiddle, avail) if avail > 0 else ""
+        name_w = fm.horizontalAdvance(name_text) + 6 if name_text else 0
+
+        if track and track.loaded:
+            # 波形很密时垫一层半透明白底，保证文字读得清
+            painter.fillRect(QRectF(4, y + 2, role_w + name_w + 8, fm.height()),
+                             QColor(255, 255, 255, 205))
+
+        painter.setPen(QPen(color))
+        painter.drawText(6, text_y, label)
+        if name_text:
+            painter.setPen(QPen(LANE_TEXT))
+            painter.drawText(name_x, text_y, name_text)
 
     # ---------- 鼠标交互 ----------
     def _lane_at_y(self, y):
