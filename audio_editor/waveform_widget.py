@@ -149,16 +149,20 @@ class DualWaveformView(QWidget):
         self.viewChanged.emit()
 
     def zoom(self, factor, center_time=None):
+        """放大/缩小时间轴，并把播放指针移到视图正中。
+
+        缩放后视图时长按 factor 变化，播放指针停在屏幕水平中心；
+        靠近时间轴两端（0 或末尾）时受 [0, 总时长] 限制，无法再居中。
+        """
         total = self.total_duration()
         if total <= 0:
             return
         dur = self.view_end - self.view_start
         if center_time is None:
-            center_time = (self.view_start + self.view_end) / 2
+            center_time = self.playhead
         new_dur = dur * factor
         new_dur = max(0.05, min(total, new_dur))
-        ratio = (center_time - self.view_start) / dur if dur > 0 else 0.5
-        new_start = center_time - ratio * new_dur
+        new_start = center_time - new_dur / 2
         new_end = new_start + new_dur
         if new_start < 0:
             new_end -= new_start
@@ -395,7 +399,7 @@ class DualWaveformView(QWidget):
             if delta == 0:
                 return
             factor = 0.85 if delta > 0 else 1 / 0.85
-            self.zoom(factor, self.x_to_time(event.x()))
+            self.zoom(factor)
         else:
             dur = self.view_end - self.view_start
             if not pixel.isNull():
