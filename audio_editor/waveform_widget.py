@@ -394,21 +394,14 @@ class DualWaveformView(QWidget):
         angle = event.angleDelta()
         pixel = event.pixelDelta()
 
-        if event.modifiers() & Qt.ControlModifier:
-            delta = angle.y() or angle.x()
-            if delta == 0:
-                return
-            factor = 0.85 if delta > 0 else 1 / 0.85
-            self.zoom(factor)
+        dur = self.view_end - self.view_start
+        if not pixel.isNull():
+            # 触摸板：像素级平移，横向滑动优先，否则用纵向滑动横移时间轴
+            d = pixel.x() if pixel.x() else pixel.y()
+            delta_seconds = -d / max(1, self.width()) * dur
         else:
-            dur = self.view_end - self.view_start
-            if not pixel.isNull():
-                # 触摸板：像素级平移，横向滑动优先，否则用纵向滑动横移时间轴
-                d = pixel.x() if pixel.x() else pixel.y()
-                delta_seconds = -d / max(1, self.width()) * dur
-            else:
-                # 鼠标滚轮 / 部分触摸板：按刻度平移
-                d = angle.x() or angle.y()
-                delta_seconds = -d / 120.0 * dur * 0.2
-            self.pan(delta_seconds)
+            # 鼠标滚轮 / 部分触摸板：按刻度平移
+            d = angle.x() or angle.y()
+            delta_seconds = -d / 120.0 * dur * 0.2
+        self.pan(delta_seconds)
         event.accept()
